@@ -1,7 +1,17 @@
-mysql:
-  image: mysql:8.0
-  environment:
-    MYSQL_DATABASE: mpi_execute_api
-    MYSQL_ROOT_PASSWORD: root
-  ports:
-    - 3306:3306
+version: '3.8'
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql-container
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: k8sapp
+      MYSQL_USER: k8suser
+      MYSQL_PASSWORD: k8spassword
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+volumes:
+  mysql_data:
