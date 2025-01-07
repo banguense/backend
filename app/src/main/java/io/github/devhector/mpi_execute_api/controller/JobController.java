@@ -1,5 +1,6 @@
 package io.github.devhector.mpi_execute_api.controller;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -15,6 +16,7 @@ import io.github.devhector.mpi_execute_api.service.JobService;
 public class JobController {
   private JobService jobService;
 
+  @Autowired
   public JobController(JobService jobService) {
     this.jobService = jobService;
   }
