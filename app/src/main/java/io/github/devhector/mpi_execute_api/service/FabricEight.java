@@ -18,7 +18,7 @@ public class FabricEight implements KubernetesClient {
   @Override
   public void createJob(JobRequest request) {
     try (io.fabric8.kubernetes.client.KubernetesClient client = clientBuilder.build()) {
-      Job job = jobBuilder.withNewMetadata().withName(request.getUuid()).endMetadata()
+      Job job = jobBuilder.withNewMetadata().withName(request.getUuid()).withNamespace("default").endMetadata()
           .withNewSpec().withNewTemplate().withNewSpec().addNewContainer().withName("busybox").withImage("busybox")
           .withCommand("echo", "Hello world!").endContainer().withRestartPolicy("Never").endSpec().endTemplate()
           .endSpec().build();
