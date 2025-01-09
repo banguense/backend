@@ -4,6 +4,7 @@ public class JobRequest {
   private Integer numberOfWorkers;
   private Integer numberOfProcess;
   private String code;
+  private String uuid;
 
   public JobRequest(Integer numberOfWorkers, Integer numberOfProcess, String code) {
     this.numberOfWorkers = numberOfWorkers;
@@ -33,6 +34,14 @@ public class JobRequest {
 
   public void setCode(String code) {
     this.code = code;
+  }
+
+  public String getUuid() {
+    return uuid;
+  }
+
+  public void setUuid(String uuid) {
+    this.uuid = uuid;
   }
 
 }

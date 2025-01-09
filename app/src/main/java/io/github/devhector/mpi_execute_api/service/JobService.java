@@ -22,16 +22,16 @@ public class JobService {
   }
 
   public JobResponse createJob(JobRequest request) {
-    String uuid = UUID.randomUUID().toString();
+    request.setUuid(UUID.randomUUID().toString());
 
     kubernetesService.createJob(request);
 
     JobEntity entity = new JobEntity.Builder()
-        .uuid(uuid).status("PENDING").workers(request.getNumberOfWorkers())
+        .uuid(request.getUuid()).status("PENDING").workers(request.getNumberOfWorkers())
         .processess(request.getNumberOfProcess()).code(request.getCode()).build();
 
     repository.save(entity);
 
-    return new JobResponse(uuid);
+    return new JobResponse(request.getUuid());
   }
 }
