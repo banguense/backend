@@ -9,7 +9,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import io.github.devhector.mpi_execute_api.model.JobRequest;
 import io.github.devhector.mpi_execute_api.model.JobResponse;
+import io.github.devhector.mpi_execute_api.model.StatusResponse;
 import io.github.devhector.mpi_execute_api.service.JobService;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @RestController
 @RequestMapping("/api")
@@ -25,6 +28,12 @@ public class JobController {
   public ResponseEntity<JobResponse> createJob(@RequestBody JobRequest request) {
     JobResponse response = jobService.createJob(request);
     return ResponseEntity.ok(response);
+  }
+
+  @GetMapping("/status")
+  public ResponseEntity<StatusResponse> jobStatus(@RequestParam String uuid) {
+    StatusResponse status = jobService.jobStatus(uuid);
+    return ResponseEntity.ok(status);
   }
 
 }
