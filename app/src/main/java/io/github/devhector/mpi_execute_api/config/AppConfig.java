@@ -4,6 +4,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import io.fabric8.kubernetes.api.model.batch.v1.JobBuilder;
+import io.fabric8.kubernetes.client.Config;
 import io.fabric8.kubernetes.client.KubernetesClientBuilder;
 import io.github.devhector.mpi_execute_api.interfaces.KubernetesClient;
 import io.github.devhector.mpi_execute_api.repository.JobRepository;
@@ -16,7 +17,9 @@ public class AppConfig {
 
   @Bean
   public KubernetesClient kubernetesClient() {
-    return new FabricEight(new KubernetesClientBuilder(), new JobBuilder());
+    return new FabricEight(
+        new KubernetesClientBuilder().withConfig(Config.autoConfigure(null)),
+        new JobBuilder());
   }
 
   @Bean
