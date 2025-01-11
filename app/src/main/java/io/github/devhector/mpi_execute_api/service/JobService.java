@@ -47,4 +47,10 @@ public class JobService {
 
     return new StatusResponse(uuid, "NOT_FOUND", "Job not found for the given UUID!");
   }
+
+  public JobResponse run(JobRequest request) {
+    request.setUuid(UUID.randomUUID().toString());
+
+    return kubernetesService.run(request);
+  }
 }

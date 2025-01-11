@@ -2,13 +2,24 @@ package io.github.devhector.mpi_execute_api.model;
 
 public class JobResponse {
   private final String id;
+  private final String result;
 
   public JobResponse(String id) {
     this.id = id;
+    this.result = null;
+  }
+
+  public JobResponse(String id, String result) {
+    this.id = id;
+    this.result = result;
   }
 
   public String getId() {
     return id;
+  }
+
+  public String getResult() {
+    return result;
   }
 
   @Override
