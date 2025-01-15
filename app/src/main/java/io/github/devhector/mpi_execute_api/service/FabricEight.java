@@ -1,13 +1,21 @@
 package io.github.devhector.mpi_execute_api.service;
 
-import io.fabric8.kubernetes.api.model.EmptyDirVolumeSource;
+import io.fabric8.kubernetes.api.model.PodBuilder;
 import io.fabric8.kubernetes.api.model.batch.v1.Job;
 import io.fabric8.kubernetes.api.model.batch.v1.JobBuilder;
 import io.fabric8.kubernetes.client.KubernetesClientBuilder;
+import io.fabric8.kubernetes.client.dsl.LogWatch;
 import io.github.devhector.mpi_execute_api.interfaces.KubernetesClient;
 import io.github.devhector.mpi_execute_api.model.JobRequest;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import io.fabric8.kubernetes.api.model.Pod;
 
 public class FabricEight implements KubernetesClient {
+  private static final Logger logger = LoggerFactory.getLogger(FabricEight.class);
+
   private final KubernetesClientBuilder clientBuilder;
   private final JobBuilder jobBuilder;
 
@@ -31,42 +39,46 @@ public class FabricEight implements KubernetesClient {
   @Override
   public String run(JobRequest request) {
     try (io.fabric8.kubernetes.client.KubernetesClient client = clientBuilder.build()) {
-      Job job = jobBuilder.withNewMetadata().withName(request.getUuid()).endMetadata()
-          .withNewSpec().withTtlSecondsAfterFinished(5)
-          .withNewTemplate()
-          .withNewMetadata().withName("mpi-job-template").endMetadata()
-          .withNewSpec().addNewContainer()
-          .withName("runner").withImage("openmpi-alpine:latest")
-          .withCommand("sh", "-c",
-              "echo '" + request.getCode() + "' > /code/main.c && gcc /code/main.c -o /code/main && /code/main")
-          .addNewVolumeMount().withName("code-volume").withMountPath("/code").endVolumeMount().endContainer()
-          .withRestartPolicy("Never")
-          .addNewVolume().withName("code-volume").withEmptyDir(new EmptyDirVolumeSource()).endVolume()
-          .endSpec().endTemplate().endSpec().build();
-
-      client.batch().v1().jobs().resource(job).create();
-
-      boolean completed = false;
-
-      while (!completed) {
-        Job currentJob = client.batch().v1().jobs().inNamespace("default").withName(request.getUuid()).get();
-
-        if (currentJob.getStatus() != null && currentJob.getStatus().getSucceeded() != null
-            && currentJob.getStatus().getSucceeded() == 1) {
-          completed = true;
-        }
-        Thread.sleep(500);
-      }
-
-      String podName = client.pods().inNamespace("default").withLabel("job-name", request.getUuid()).list().getItems()
-          .get(0).getMetadata().getName();
-
-      String logs = client.pods().inNamespace("default").withName(podName).getLog();
-
-      return logs;
+      final String podName = "alpine-mpi";
+      final String imageName = "localhost:32000/alpine-mpi:local";
+      final String namespace = Optional.ofNullable(client.getNamespace()).orElse("default");
+      final Pod pod = client.pods().inNamespace(namespace).resource(
+          new PodBuilder()
+              .withNewMetadata()
+              .withName(podName)
+              .withNamespace(namespace)
+              .endMetadata()
+              .withNewSpec()
+              .addNewContainer()
+              .withName(podName)
+              .withImage(imageName)
+              .withCommand("sh", "-c", command(request.getCode()))
+              .endContainer()
+              .withRestartPolicy("Never")
+              .endSpec()
+              .build())
+          .create();
+      logger.info("Pod is ready now");
+      final LogWatch lw = client.pods().inNamespace(namespace).withName(pod.getMetadata().getName())
+          .watchLog(System.out);
+      TimeUnit.SECONDS.sleep(2L);
+      String log = client.pods().inNamespace(namespace).withName(podName).getLog();
+      logger.info("Watching Pod logs for 10 seconds...");
+      logger.info("Deleting Pod...");
+      client.resource(pod).inNamespace(namespace).delete();
+      lw.close();
+      logger.info("Closing Pod log watch");
+      return log;
     } catch (Exception e) {
       e.printStackTrace();
-      return "erro";
+      return e.getMessage().toString();
     }
   }
+
+  private String command(String code) {
+    return String.format(
+        "echo '%s' > /tmp/code.c && gcc /tmp/code.c -o /tmp/code && ./tmp/code",
+        code.replace("'", "'\"'\"'"));
+  }
+
 }
