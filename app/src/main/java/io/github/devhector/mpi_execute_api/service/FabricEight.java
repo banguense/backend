@@ -7,8 +7,14 @@ import io.fabric8.kubernetes.client.KubernetesClientBuilder;
 import io.fabric8.kubernetes.client.dsl.LogWatch;
 import io.github.devhector.mpi_execute_api.interfaces.KubernetesClient;
 import io.github.devhector.mpi_execute_api.model.JobRequest;
+
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.fabric8.kubernetes.api.model.Pod;
@@ -39,35 +45,98 @@ public class FabricEight implements KubernetesClient {
   @Override
   public String run(JobRequest request) {
     try (io.fabric8.kubernetes.client.KubernetesClient client = clientBuilder.build()) {
-      final String podName = "alpine-mpi";
-      final String imageName = "localhost:32000/alpine-mpi:local";
+      String uuid = request.getUuid().substring(0, 5);
+      String podName = "master-" + uuid;
+      String imageName = "localhost:32000/alpine-mpi:v0.2";
       final String namespace = Optional.ofNullable(client.getNamespace()).orElse("default");
-      final Pod pod = client.pods().inNamespace(namespace).resource(
+
+      List<String> podNames = new ArrayList<>();
+      for (int i = 0; i < request.getNumberOfWorkers(); i++) {
+        String workerPodName = String.format("worker-%s-%d", uuid.subSequence(0, 5), i);
+        client.pods().inNamespace(namespace).resource(
+            new PodBuilder()
+                .withNewMetadata()
+                .withName(workerPodName)
+                .withNamespace(namespace)
+                .addToLabels("app", "mpi-worker")
+                .endMetadata()
+                .withNewSpec()
+                .addNewContainer()
+                .withName("alpine-mpi")
+                .withImage(imageName)
+                .withCommand("sh", "-c", "/usr/sbin/sshd -D && tail -f /dev/null")
+                .addNewPort()
+                .withContainerPort(22)
+                .endPort()
+                .addNewVolumeMount()
+                .withName("nfs-volume")
+                .withMountPath("/shared-nfs")
+                .endVolumeMount()
+                .endContainer()
+                .withRestartPolicy("Never")
+                .addNewVolume()
+                .withName("nfs-volume")
+                .withNewPersistentVolumeClaim()
+                .withClaimName("nfs-pvc")
+                .endPersistentVolumeClaim()
+                .endVolume()
+                .endSpec()
+                .build())
+            .create();
+        podNames.add(workerPodName);
+      }
+
+      client.pods().inNamespace(namespace).withName(podNames.getLast()).waitUntilReady(2L, TimeUnit.SECONDS);
+
+      List<String> hostAddresses = getIpFrom(namespace, client, podNames);
+
+      Pod pod = client.pods().inNamespace(namespace).resource(
           new PodBuilder()
               .withNewMetadata()
               .withName(podName)
               .withNamespace(namespace)
+              .addToLabels("app", "mpi-worker")
               .endMetadata()
               .withNewSpec()
               .addNewContainer()
               .withName(podName)
               .withImage(imageName)
-              .withCommand("sh", "-c", command(request.getCode()))
+              .withCommand("sh", "-c",
+                  command(request.getCode(), request.getNumberOfProcess(), "/shared-nfs/" +
+                      podName, String.join(",", hostAddresses)))
+              .addNewPort()
+              .withContainerPort(22)
+              .endPort()
+              .addNewVolumeMount()
+              .withName("nfs-volume")
+              .withMountPath("/shared-nfs")
+              .endVolumeMount()
               .endContainer()
               .withRestartPolicy("Never")
+              .addNewVolume()
+              .withName("nfs-volume")
+              .withNewPersistentVolumeClaim()
+              .withClaimName("nfs-pvc")
+              .endPersistentVolumeClaim()
+              .endVolume()
               .endSpec()
               .build())
           .create();
+
       logger.info("Pod is ready now");
       final LogWatch lw = client.pods().inNamespace(namespace).withName(pod.getMetadata().getName())
           .watchLog(System.out);
       TimeUnit.SECONDS.sleep(2L);
       String log = client.pods().inNamespace(namespace).withName(podName).getLog();
-      logger.info("Watching Pod logs for 10 seconds...");
       logger.info("Deleting Pod...");
       client.resource(pod).inNamespace(namespace).delete();
       lw.close();
       logger.info("Closing Pod log watch");
+
+      podNames.forEach(name -> client.pods().inNamespace(namespace).withName(name).delete());
+      client.pods().inNamespace(namespace).withName(podName).delete();
+      client.resource(pod).inNamespace(namespace).delete();
+
       return log;
     } catch (Exception e) {
       e.printStackTrace();
@@ -75,10 +144,28 @@ public class FabricEight implements KubernetesClient {
     }
   }
 
-  private String command(String code) {
+  private static List<String> getIpFrom(String namespace, KubernetesClient client, List<String> podNames) {
+    return podNames.stream()
+        .map(name -> client.pods().inNamespace(namespace).withName(name).get())
+        .filter(worker -> worker.getStatus() != null &&
+            "Running".equals(worker.getStatus().getPhase()))
+        .map(worker -> worker.getStatus().getPodIP())
+        .collect(Collectors.toList());
+  }
+
+  private static String command(String code, int numProcesses, String path, String hosts) {
+    String base64 = Base64.getEncoder().encodeToString(code.getBytes());
     return String.format(
-        "echo '%s' > /tmp/code.c && gcc /tmp/code.c -o /tmp/code && ./tmp/code",
-        code.replace("'", "'\"'\"'"));
+        "mkdir %s && echo '%s' | base64 -d > %s/code.c && mpicc %s/code.c -o %s/code && mpirun --allow-run-as-root -np %d  -host %s %s/code && rm -rf %s",
+        path,
+        base64,
+        path,
+        path,
+        path,
+        numProcesses,
+        hosts,
+        path,
+        path);
   }
 
 }
