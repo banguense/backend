@@ -84,17 +84,20 @@ public class FabricEight implements KubernetesClient {
         podNames.add(workerPodName);
       }
 
-      // client.pods().inNamespace(namespace).withName(podNames.getLast()).waitUntilReady(9L,
+      // client.pods().inNamespace(namespace).withName(podNames.getLast()).waitUntilReady(10L,
       // TimeUnit.SECONDS);
+      logger.info("workers pod created and wait 40s " + podNames.getLast());
       client.pods()
           .inNamespace(namespace)
-          .withName(podName)
+          .withName(podNames.getLast())
           .waitUntilCondition(
               pod -> pod != null && "Running".equalsIgnoreCase(pod.getStatus().getPhase()),
-              90L,
+              40L,
               TimeUnit.SECONDS);
 
       List<String> hostAddresses = getHostsFrom(client, namespace, podNames);
+
+      logger.info("list of hosts: " + hostAddresses.toString());
 
       Pod pod = client.pods().inNamespace(namespace).resource(
           new PodBuilder()
@@ -133,23 +136,15 @@ public class FabricEight implements KubernetesClient {
       final LogWatch lw = client.pods().inNamespace(namespace).withName(pod.getMetadata().getName())
           .watchLog(System.out);
 
-      client.pods()
-          .inNamespace(namespace)
-          .withName(podName)
-          .waitUntilCondition(
-              podw -> podw != null && "Succeeded".equalsIgnoreCase(pod.getStatus().getPhase()),
-              10L,
-              TimeUnit.SECONDS);
-
+      TimeUnit.SECONDS.sleep(5L);
       String log = client.pods().inNamespace(namespace).withName(podName).getLog();
-      logger.info("Deleting Pod...");
-      client.resource(pod).inNamespace(namespace).delete();
       lw.close();
       logger.info("Closing Pod log watch");
 
       podNames.forEach(name -> client.pods().inNamespace(namespace).withName(name).delete());
       client.pods().inNamespace(namespace).withName(podName).delete();
       client.resource(pod).inNamespace(namespace).delete();
+      logger.info("Deleting all pods");
 
       return log;
     } catch (Exception e) {
@@ -171,7 +166,7 @@ public class FabricEight implements KubernetesClient {
   private String command(String code, int numProcesses, String path, String hosts) {
     String base64 = Base64.getEncoder().encodeToString(code.getBytes());
     return String.format(
-        "mkdir %s && echo '%s' | base64 -d > %s/code.c && mpicc %s/code.c -o %s/code && mpirun --allow-run-as-root -np %d  -host %s %s/code && rm -rf %s",
+        "mkdir %s && echo '%s' | base64 -d > %s/code.c && mpicc %s/code.c -o %s/code && mpirun --allow-run-as-root --oversubscribe -np %d  -host %s %s/code && rm -rf %s",
         path,
         base64,
         path,
