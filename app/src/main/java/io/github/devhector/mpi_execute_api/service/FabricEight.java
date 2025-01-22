@@ -7,14 +7,12 @@ import io.fabric8.kubernetes.client.KubernetesClientBuilder;
 import io.fabric8.kubernetes.client.dsl.LogWatch;
 import io.github.devhector.mpi_execute_api.interfaces.KubernetesClient;
 import io.github.devhector.mpi_execute_api.model.JobRequest;
-
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.fabric8.kubernetes.api.model.Pod;
@@ -88,7 +86,7 @@ public class FabricEight implements KubernetesClient {
 
       client.pods().inNamespace(namespace).withName(podNames.getLast()).waitUntilReady(2L, TimeUnit.SECONDS);
 
-      List<String> hostAddresses = getIpFrom(namespace, client, podNames);
+      List<String> hostAddresses = getHostsFrom(client, namespace, podNames);
 
       Pod pod = client.pods().inNamespace(namespace).resource(
           new PodBuilder()
@@ -144,7 +142,8 @@ public class FabricEight implements KubernetesClient {
     }
   }
 
-  private static List<String> getIpFrom(String namespace, KubernetesClient client, List<String> podNames) {
+  private List<String> getHostsFrom(io.fabric8.kubernetes.client.KubernetesClient client, final String namespace,
+      List<String> podNames) {
     return podNames.stream()
         .map(name -> client.pods().inNamespace(namespace).withName(name).get())
         .filter(worker -> worker.getStatus() != null &&
@@ -153,7 +152,7 @@ public class FabricEight implements KubernetesClient {
         .collect(Collectors.toList());
   }
 
-  private static String command(String code, int numProcesses, String path, String hosts) {
+  private String command(String code, int numProcesses, String path, String hosts) {
     String base64 = Base64.getEncoder().encodeToString(code.getBytes());
     return String.format(
         "mkdir %s && echo '%s' | base64 -d > %s/code.c && mpicc %s/code.c -o %s/code && mpirun --allow-run-as-root -np %d  -host %s %s/code && rm -rf %s",
