@@ -84,7 +84,15 @@ public class FabricEight implements KubernetesClient {
         podNames.add(workerPodName);
       }
 
-      client.pods().inNamespace(namespace).withName(podNames.getLast()).waitUntilReady(2L, TimeUnit.SECONDS);
+      // client.pods().inNamespace(namespace).withName(podNames.getLast()).waitUntilReady(9L,
+      // TimeUnit.SECONDS);
+      client.pods()
+          .inNamespace(namespace)
+          .withName(podName)
+          .waitUntilCondition(
+              pod -> pod != null && "Running".equalsIgnoreCase(pod.getStatus().getPhase()),
+              90L,
+              TimeUnit.SECONDS);
 
       List<String> hostAddresses = getHostsFrom(client, namespace, podNames);
 
@@ -124,7 +132,15 @@ public class FabricEight implements KubernetesClient {
       logger.info("Pod is ready now");
       final LogWatch lw = client.pods().inNamespace(namespace).withName(pod.getMetadata().getName())
           .watchLog(System.out);
-      TimeUnit.SECONDS.sleep(2L);
+
+      client.pods()
+          .inNamespace(namespace)
+          .withName(podName)
+          .waitUntilCondition(
+              podw -> podw != null && "Succeeded".equalsIgnoreCase(pod.getStatus().getPhase()),
+              10L,
+              TimeUnit.SECONDS);
+
       String log = client.pods().inNamespace(namespace).withName(podName).getLog();
       logger.info("Deleting Pod...");
       client.resource(pod).inNamespace(namespace).delete();
