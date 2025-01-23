@@ -1,5 +1,6 @@
 package io.github.devhector.mpi_execute_api.service;
 
+import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.api.model.PodBuilder;
 import io.fabric8.kubernetes.api.model.batch.v1.Job;
 import io.fabric8.kubernetes.api.model.batch.v1.JobBuilder;
@@ -15,7 +16,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import io.fabric8.kubernetes.api.model.Pod;
+import io.fabric8.kubernetes.api.model.PodBuilder;
 
 public class FabricEight implements KubernetesClient {
   private static final Logger logger = LoggerFactory.getLogger(FabricEight.class);
@@ -48,6 +49,8 @@ public class FabricEight implements KubernetesClient {
       String imageName = "localhost:32000/alpine-mpi:v0.2";
       final String namespace = Optional.ofNullable(client.getNamespace()).orElse("default");
 
+      validate(request);
+
       List<String> podNames = new ArrayList<>();
       for (int i = 0; i < request.getNumberOfWorkers(); i++) {
         String workerPodName = String.format("worker-%s-%d", uuid.subSequence(0, 5), i);
@@ -56,7 +59,7 @@ public class FabricEight implements KubernetesClient {
                 .withNewMetadata()
                 .withName(workerPodName)
                 .withNamespace(namespace)
-                .addToLabels("app", "mpi-worker")
+                .addToLabels("mpi", uuid)
                 .endMetadata()
                 .withNewSpec()
                 .addNewContainer()
@@ -84,16 +87,14 @@ public class FabricEight implements KubernetesClient {
         podNames.add(workerPodName);
       }
 
-      // client.pods().inNamespace(namespace).withName(podNames.getLast()).waitUntilReady(10L,
-      // TimeUnit.SECONDS);
-      logger.info("workers pod created and wait 40s " + podNames.getLast());
-      client.pods()
+      logger.info("wait worker pods Running");
+      podNames.forEach(name -> client.pods()
           .inNamespace(namespace)
-          .withName(podNames.getLast())
+          .withName(name)
           .waitUntilCondition(
               pod -> pod != null && "Running".equalsIgnoreCase(pod.getStatus().getPhase()),
-              40L,
-              TimeUnit.SECONDS);
+              60L,
+              TimeUnit.SECONDS));
 
       List<String> hostAddresses = getHostsFrom(client, namespace, podNames);
 
@@ -104,7 +105,7 @@ public class FabricEight implements KubernetesClient {
               .withNewMetadata()
               .withName(podName)
               .withNamespace(namespace)
-              .addToLabels("app", "mpi-worker")
+              .addToLabels("mpi", uuid)
               .endMetadata()
               .withNewSpec()
               .addNewContainer()
@@ -153,6 +154,16 @@ public class FabricEight implements KubernetesClient {
     }
   }
 
+  private void validate(JobRequest request) {
+    if (request.getNumberOfWorkers() <= 0 || request.getNumberOfProcess() <= 0) {
+      throw new IllegalArgumentException("Número de container e processos deve ser maior que 0");
+    }
+
+    if (request.getNumberOfWorkers() > 15) {
+      request.setNumberOfWorkers(15);
+    }
+  }
+
   private List<String> getHostsFrom(io.fabric8.kubernetes.client.KubernetesClient client, final String namespace,
       List<String> podNames) {
     return podNames.stream()
@@ -166,7 +177,11 @@ public class FabricEight implements KubernetesClient {
   private String command(String code, int numProcesses, String path, String hosts) {
     String base64 = Base64.getEncoder().encodeToString(code.getBytes());
     return String.format(
-        "mkdir %s && echo '%s' | base64 -d > %s/code.c && mpicc %s/code.c -o %s/code && mpirun --allow-run-as-root --oversubscribe -np %d  -host %s %s/code && rm -rf %s",
+        "mkdir %s &&" +
+            " echo '%s' | base64 -d > %s/code.c &&" +
+            " mpicc %s/code.c -o %s/code &&" +
+            " mpirun --allow-run-as-root --oversubscribe -np %d  -host %s %s/code &&" +
+            " rm -rf %s",
         path,
         base64,
         path,
