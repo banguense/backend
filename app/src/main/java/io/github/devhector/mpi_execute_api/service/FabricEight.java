@@ -51,43 +51,9 @@ public class FabricEight implements KubernetesClient {
 
       validate(request);
 
-      List<String> podNames = new ArrayList<>();
-      for (int i = 0; i < request.getNumberOfWorkers(); i++) {
-        String workerPodName = String.format("worker-%s-%d", uuid.subSequence(0, 5), i);
-        client.pods().inNamespace(namespace).resource(
-            new PodBuilder()
-                .withNewMetadata()
-                .withName(workerPodName)
-                .withNamespace(namespace)
-                .addToLabels("mpi", uuid)
-                .endMetadata()
-                .withNewSpec()
-                .addNewContainer()
-                .withName("alpine-mpi")
-                .withImage(imageName)
-                .withCommand("sh", "-c", "/usr/sbin/sshd -D && tail -f /dev/null")
-                .addNewPort()
-                .withContainerPort(22)
-                .endPort()
-                .addNewVolumeMount()
-                .withName("nfs-volume")
-                .withMountPath("/shared-nfs")
-                .endVolumeMount()
-                .endContainer()
-                .withRestartPolicy("Never")
-                .addNewVolume()
-                .withName("nfs-volume")
-                .withNewPersistentVolumeClaim()
-                .withClaimName("nfs-pvc")
-                .endPersistentVolumeClaim()
-                .endVolume()
-                .endSpec()
-                .build())
-            .create();
-        podNames.add(workerPodName);
-      }
+      List<String> podNames = createWorkerPods(request, client, uuid, imageName, namespace);
 
-      logger.info("wait worker pods Running");
+      logger.info("waiting worker pods to be running");
       podNames.forEach(name -> client.pods()
           .inNamespace(namespace)
           .withName(name)
@@ -97,23 +63,84 @@ public class FabricEight implements KubernetesClient {
               TimeUnit.SECONDS));
 
       List<String> hostAddresses = getHostsFrom(client, namespace, podNames);
-
       logger.info("list of hosts: " + hostAddresses.toString());
 
-      Pod pod = client.pods().inNamespace(namespace).resource(
+      Pod pod = createMasterPod(request, client, uuid, podName, imageName, namespace, hostAddresses);
+
+      logger.info("Master Pod is ready now");
+      final LogWatch lw = client.pods().inNamespace(namespace).withName(pod.getMetadata().getName())
+          .watchLog(System.out);
+
+      TimeUnit.SECONDS.sleep(5L);
+      String log = client.pods().inNamespace(namespace).withName(podName).getLog();
+      lw.close();
+      logger.info("Closing Master Pod log watch");
+
+      logger.info("Deleting all pods");
+      podNames.forEach(name -> client.pods().inNamespace(namespace).withName(name).delete());
+      client.pods().inNamespace(namespace).withName(podName).delete();
+
+      return log;
+    } catch (Exception e) {
+      e.printStackTrace();
+      return e.getMessage().toString();
+    }
+  }
+
+  private Pod createMasterPod(JobRequest request, io.fabric8.kubernetes.client.KubernetesClient client, String uuid,
+      String podName, String imageName, final String namespace, List<String> hostAddresses) {
+    Pod pod = client.pods().inNamespace(namespace).resource(
+        new PodBuilder()
+            .withNewMetadata()
+            .withName(podName)
+            .withNamespace(namespace)
+            .addToLabels("mpi", uuid)
+            .endMetadata()
+            .withNewSpec()
+            .addNewContainer()
+            .withName(podName)
+            .withImage(imageName)
+            .withCommand("sh", "-c",
+                command(request.getCode(), request.getNumberOfProcess(), "/shared-nfs/" +
+                    podName, String.join(",", hostAddresses)))
+            .addNewPort()
+            .withContainerPort(22)
+            .endPort()
+            .addNewVolumeMount()
+            .withName("nfs-volume")
+            .withMountPath("/shared-nfs")
+            .endVolumeMount()
+            .endContainer()
+            .withRestartPolicy("Never")
+            .addNewVolume()
+            .withName("nfs-volume")
+            .withNewPersistentVolumeClaim()
+            .withClaimName("nfs-pvc")
+            .endPersistentVolumeClaim()
+            .endVolume()
+            .endSpec()
+            .build())
+        .create();
+    return pod;
+  }
+
+  private List<String> createWorkerPods(JobRequest request, io.fabric8.kubernetes.client.KubernetesClient client,
+      String uuid, String imageName, final String namespace) {
+    List<String> podNames = new ArrayList<>();
+    for (int i = 0; i < request.getNumberOfWorkers(); i++) {
+      String workerPodName = String.format("worker-%s-%d", uuid.subSequence(0, 5), i);
+      client.pods().inNamespace(namespace).resource(
           new PodBuilder()
               .withNewMetadata()
-              .withName(podName)
+              .withName(workerPodName)
               .withNamespace(namespace)
               .addToLabels("mpi", uuid)
               .endMetadata()
               .withNewSpec()
               .addNewContainer()
-              .withName(podName)
+              .withName("alpine-mpi")
               .withImage(imageName)
-              .withCommand("sh", "-c",
-                  command(request.getCode(), request.getNumberOfProcess(), "/shared-nfs/" +
-                      podName, String.join(",", hostAddresses)))
+              .withCommand("sh", "-c", "/usr/sbin/sshd -D && tail -f /dev/null")
               .addNewPort()
               .withContainerPort(22)
               .endPort()
@@ -132,26 +159,9 @@ public class FabricEight implements KubernetesClient {
               .endSpec()
               .build())
           .create();
-
-      logger.info("Pod is ready now");
-      final LogWatch lw = client.pods().inNamespace(namespace).withName(pod.getMetadata().getName())
-          .watchLog(System.out);
-
-      TimeUnit.SECONDS.sleep(5L);
-      String log = client.pods().inNamespace(namespace).withName(podName).getLog();
-      lw.close();
-      logger.info("Closing Pod log watch");
-
-      podNames.forEach(name -> client.pods().inNamespace(namespace).withName(name).delete());
-      client.pods().inNamespace(namespace).withName(podName).delete();
-      client.resource(pod).inNamespace(namespace).delete();
-      logger.info("Deleting all pods");
-
-      return log;
-    } catch (Exception e) {
-      e.printStackTrace();
-      return e.getMessage().toString();
+      podNames.add(workerPodName);
     }
+    return podNames;
   }
 
   private void validate(JobRequest request) {
