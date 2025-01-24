@@ -1,18 +1,18 @@
 package io.github.devhector.mpi_execute_api.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.github.devhector.mpi_execute_api.exception.InvalidAccessKeyException;
 import io.github.devhector.mpi_execute_api.model.JobRequest;
 import io.github.devhector.mpi_execute_api.model.JobResponse;
-import io.github.devhector.mpi_execute_api.model.StatusResponse;
 import io.github.devhector.mpi_execute_api.service.JobService;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 
 @RestController
 @RequestMapping("/api")
@@ -30,16 +30,15 @@ public class JobController {
     return ResponseEntity.ok(response);
   }
 
-  @GetMapping("/status")
-  public ResponseEntity<StatusResponse> jobStatus(@RequestParam String uuid) {
-    StatusResponse status = jobService.jobStatus(uuid);
-    return ResponseEntity.ok(status);
-  }
-
   @PostMapping("/run")
   public ResponseEntity<JobResponse> run(@RequestBody JobRequest request) {
     JobResponse response = jobService.run(request);
     return ResponseEntity.ok(response);
+  }
+
+  @ExceptionHandler(InvalidAccessKeyException.class)
+  public ResponseEntity<Void> handleInvalidAccessKey() {
+    return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
   }
 
 }

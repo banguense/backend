@@ -3,6 +3,7 @@ package io.github.devhector.mpi_execute_api.model;
 public class JobRequest {
   private Integer numberOfWorkers;
   private Integer numberOfProcess;
+  private String accessKey;
   private String code;
   private String uuid;
 
@@ -10,6 +11,14 @@ public class JobRequest {
     this.numberOfWorkers = numberOfWorkers;
     this.numberOfProcess = numberOfProcess;
     this.code = code;
+  }
+
+  public JobRequest(Integer numberOfWorkers, Integer numberOfProcess, String code, String accessKey, String uuid) {
+    this.numberOfWorkers = numberOfWorkers;
+    this.numberOfProcess = numberOfProcess;
+    this.accessKey = accessKey;
+    this.code = code;
+    this.uuid = uuid;
   }
 
   public Integer getNumberOfWorkers() {
@@ -42,6 +51,14 @@ public class JobRequest {
 
   public void setUuid(String uuid) {
     this.uuid = uuid;
+  }
+
+  public String getAccessKey() {
+    return accessKey;
+  }
+
+  public void setAccessKey(String accessKey) {
+    this.accessKey = accessKey;
   }
 
 }
