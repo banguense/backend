@@ -7,18 +7,11 @@ public class JobRequest {
   private String code;
   private String uuid;
 
-  public JobRequest(Integer numberOfWorkers, Integer numberOfProcess, String code) {
-    this.numberOfWorkers = numberOfWorkers;
-    this.numberOfProcess = numberOfProcess;
-    this.code = code;
-  }
-
-  public JobRequest(Integer numberOfWorkers, Integer numberOfProcess, String code, String accessKey, String uuid) {
+  public JobRequest(Integer numberOfWorkers, Integer numberOfProcess, String accessKey, String code) {
     this.numberOfWorkers = numberOfWorkers;
     this.numberOfProcess = numberOfProcess;
     this.accessKey = accessKey;
     this.code = code;
-    this.uuid = uuid;
   }
 
   public Integer getNumberOfWorkers() {
