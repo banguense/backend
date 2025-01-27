@@ -1,6 +1,5 @@
 package io.github.devhector.mpi_execute_api.service;
 
-import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.api.model.PodBuilder;
 import io.fabric8.kubernetes.api.model.batch.v1.Job;
 import io.fabric8.kubernetes.api.model.batch.v1.JobBuilder;
@@ -16,7 +15,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import io.fabric8.kubernetes.api.model.PodBuilder;
+import io.fabric8.kubernetes.api.model.Pod;
 
 public class FabricEight implements KubernetesClient {
   private static final Logger logger = LoggerFactory.getLogger(FabricEight.class);
@@ -71,7 +70,13 @@ public class FabricEight implements KubernetesClient {
       final LogWatch lw = client.pods().inNamespace(namespace).withName(pod.getMetadata().getName())
           .watchLog(System.out);
 
-      TimeUnit.SECONDS.sleep(5L);
+      client.pods().inNamespace(namespace).withName(podName).waitUntilCondition(
+          masterPod -> masterPod != null &&
+              "Succeeded".equalsIgnoreCase(masterPod.getStatus().getPhase()) ||
+              "Failed".equalsIgnoreCase(masterPod.getStatus().getPhase()),
+          10L,
+          TimeUnit.SECONDS);
+
       String log = client.pods().inNamespace(namespace).withName(podName).getLog();
       lw.close();
       logger.info("Closing Master Pod log watch");
