@@ -12,6 +12,8 @@ import io.github.devhector.mpi_execute_api.exception.InvalidAccessKeyException;
 public class JobService {
   @Value("${app.accessKey}")
   private String accessKey;
+  @Value("${app.maxContainers}")
+  private Integer maxContainers;
   private final KubernetesService kubernetesService;
 
   @Autowired
@@ -20,9 +22,7 @@ public class JobService {
   }
 
   public JobResponse createJob(JobRequest request) {
-    if (!accessKey.equals(request.getAccessKey())) {
-      throw new InvalidAccessKeyException("Invalid Access Key!");
-    }
+    validate(request);
 
     request.setUuid(UUID.randomUUID().toString());
 
@@ -32,12 +32,19 @@ public class JobService {
   }
 
   public JobResponse run(JobRequest request) {
-    if (!accessKey.equals(request.getAccessKey())) {
-      throw new InvalidAccessKeyException("Invalid Access Key!");
-    }
+    validate(request);
 
     request.setUuid(UUID.randomUUID().toString());
 
     return kubernetesService.run(request);
+  }
+
+  private void validate(JobRequest request) throws InvalidAccessKeyException {
+    if (!accessKey.equals(request.getAccessKey())) {
+      throw new InvalidAccessKeyException("Invalid Access Key!");
+    }
+    if (request.getNumberOfWorkers() > maxContainers) {
+      request.setNumberOfWorkers(maxContainers);
+    }
   }
 }
