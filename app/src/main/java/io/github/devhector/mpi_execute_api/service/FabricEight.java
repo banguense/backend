@@ -173,10 +173,6 @@ public class FabricEight implements KubernetesClient {
     if (request.getNumberOfWorkers() <= 0 || request.getNumberOfProcess() <= 0) {
       throw new IllegalArgumentException("Número de container e processos deve ser maior que 0");
     }
-
-    if (request.getNumberOfWorkers() > 15) {
-      request.setNumberOfWorkers(15);
-    }
   }
 
   private List<String> getHostsFrom(io.fabric8.kubernetes.client.KubernetesClient client, final String namespace,
