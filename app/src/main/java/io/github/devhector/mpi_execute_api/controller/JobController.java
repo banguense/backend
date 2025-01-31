@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 import io.github.devhector.mpi_execute_api.exception.InvalidAccessKeyException;
 import io.github.devhector.mpi_execute_api.model.JobRequest;
 import io.github.devhector.mpi_execute_api.model.JobResponse;
+import io.github.devhector.mpi_execute_api.model.MakefileRequest;
 import io.github.devhector.mpi_execute_api.service.JobService;
 
 @RestController
@@ -33,6 +34,12 @@ public class JobController {
   @PostMapping("/run")
   public ResponseEntity<JobResponse> run(@RequestBody JobRequest request) {
     JobResponse response = jobService.run(request);
+    return ResponseEntity.ok(response);
+  }
+
+  @PostMapping("/makefile")
+  public ResponseEntity<JobResponse> run(@RequestBody MakefileRequest request) {
+    JobResponse response = jobService.makefileRunner(request);
     return ResponseEntity.ok(response);
   }
 

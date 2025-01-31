@@ -2,6 +2,8 @@ package io.github.devhector.mpi_execute_api.service;
 
 import io.github.devhector.mpi_execute_api.model.JobRequest;
 import io.github.devhector.mpi_execute_api.model.JobResponse;
+import io.github.devhector.mpi_execute_api.model.MakefileRequest;
+
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -39,7 +41,24 @@ public class JobService {
     return kubernetesService.run(request);
   }
 
+  public JobResponse makefileRunner(MakefileRequest request) {
+    validate(request);
+
+    request.setUuid(UUID.randomUUID().toString());
+
+    return kubernetesService.makefileRunner(request);
+  }
+
   private void validate(JobRequest request) throws InvalidAccessKeyException {
+    if (!accessKey.equals(request.getAccessKey())) {
+      throw new InvalidAccessKeyException("Invalid Access Key!");
+    }
+    if (request.getNumberOfWorkers() > maxContainers) {
+      request.setNumberOfWorkers(maxContainers);
+    }
+  }
+
+  private void validate(MakefileRequest request) throws InvalidAccessKeyException {
     if (!accessKey.equals(request.getAccessKey())) {
       throw new InvalidAccessKeyException("Invalid Access Key!");
     }

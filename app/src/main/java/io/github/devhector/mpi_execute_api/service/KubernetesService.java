@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import io.github.devhector.mpi_execute_api.interfaces.KubernetesClient;
 import io.github.devhector.mpi_execute_api.model.JobRequest;
 import io.github.devhector.mpi_execute_api.model.JobResponse;
+import io.github.devhector.mpi_execute_api.model.MakefileRequest;
 
 @Service
 public class KubernetesService {
@@ -22,6 +23,11 @@ public class KubernetesService {
 
   public JobResponse run(JobRequest request) {
     String result = kubernetesClient.run(request);
+    return new JobResponse(request.getUuid(), result);
+  }
+
+  public JobResponse makefileRunner(MakefileRequest request) {
+    String result = kubernetesClient.makefileRunner(request);
     return new JobResponse(request.getUuid(), result);
   }
 
