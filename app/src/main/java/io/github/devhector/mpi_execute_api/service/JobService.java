@@ -39,6 +39,14 @@ public class JobService {
     return kubernetesService.run(request);
   }
 
+  public JobResponse makefileRunner(JobRequest request) {
+    validate(request);
+
+    request.setUuid(UUID.randomUUID().toString());
+
+    return kubernetesService.makefileRunner(request);
+  }
+
   private void validate(JobRequest request) throws InvalidAccessKeyException {
     if (!accessKey.equals(request.getAccessKey())) {
       throw new InvalidAccessKeyException("Invalid Access Key!");

@@ -7,6 +7,8 @@ import io.fabric8.kubernetes.client.KubernetesClientBuilder;
 import io.fabric8.kubernetes.client.dsl.LogWatch;
 import io.github.devhector.mpi_execute_api.interfaces.KubernetesClient;
 import io.github.devhector.mpi_execute_api.model.JobRequest;
+import io.github.devhector.mpi_execute_api.model.MakefileRequest;
+
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -37,6 +39,59 @@ public class FabricEight implements KubernetesClient {
           .endSpec().build();
 
       client.batch().v1().jobs().resource(job).create();
+    }
+  }
+
+  @Override
+  public String makefileRunner(MakefileRequest request) {
+
+    try (io.fabric8.kubernetes.client.KubernetesClient client = clientBuilder.build()) {
+      String uuid = request.getUuid().substring(0, 5);
+      String podName = "master-" + uuid;
+      String imageName = "localhost:32000/alpine-mpi:v0.2";
+      final String namespace = Optional.ofNullable(client.getNamespace()).orElse("default");
+
+      validate(request);
+
+      List<String> podNames = createWorkerPods(request, client, uuid, imageName, namespace);
+
+      logger.info("waiting worker pods to be running");
+      podNames.forEach(name -> client.pods()
+          .inNamespace(namespace)
+          .withName(name)
+          .waitUntilCondition(
+              pod -> pod != null && "Running".equalsIgnoreCase(pod.getStatus().getPhase()),
+              60L,
+              TimeUnit.SECONDS));
+
+      List<String> hostAddresses = getHostsFrom(client, namespace, podNames);
+      logger.info("list of hosts: " + hostAddresses.toString());
+
+      Pod pod = createMasterPod(request, client, uuid, podName, imageName, namespace, hostAddresses);
+
+      logger.info("Master Pod is ready now");
+      final LogWatch lw = client.pods().inNamespace(namespace).withName(pod.getMetadata().getName())
+          .watchLog(System.out);
+
+      client.pods().inNamespace(namespace).withName(podName).waitUntilCondition(
+          masterPod -> masterPod != null &&
+              "Succeeded".equalsIgnoreCase(masterPod.getStatus().getPhase()) ||
+              "Failed".equalsIgnoreCase(masterPod.getStatus().getPhase()),
+          10L,
+          TimeUnit.SECONDS);
+
+      String log = client.pods().inNamespace(namespace).withName(podName).getLog();
+      lw.close();
+      logger.info("Closing Master Pod log watch");
+
+      logger.info("Deleting all pods");
+      podNames.forEach(name -> client.pods().inNamespace(namespace).withName(name).delete());
+      client.pods().inNamespace(namespace).withName(podName).delete();
+
+      return filter(log);
+    } catch (Exception e) {
+      e.printStackTrace();
+      return e.getMessage().toString();
     }
   }
 
@@ -85,11 +140,18 @@ public class FabricEight implements KubernetesClient {
       podNames.forEach(name -> client.pods().inNamespace(namespace).withName(name).delete());
       client.pods().inNamespace(namespace).withName(podName).delete();
 
-      return log;
+      return filter(log);
     } catch (Exception e) {
       e.printStackTrace();
       return e.getMessage().toString();
     }
+  }
+
+  private String filter(String input) {
+    return input.lines()
+        .filter(line -> !line.startsWith("Warning: Permanently added"))
+        .reduce((a, b) -> a + "\n" + b)
+        .orElse("");
   }
 
   private Pod createMasterPod(JobRequest request, io.fabric8.kubernetes.client.KubernetesClient client, String uuid,
@@ -107,6 +169,44 @@ public class FabricEight implements KubernetesClient {
             .withImage(imageName)
             .withCommand("sh", "-c",
                 command(request.getCode(), request.getNumberOfProcess(), "/shared-nfs/" +
+                    podName, String.join(",", hostAddresses)))
+            .addNewPort()
+            .withContainerPort(22)
+            .endPort()
+            .addNewVolumeMount()
+            .withName("nfs-volume")
+            .withMountPath("/shared-nfs")
+            .endVolumeMount()
+            .endContainer()
+            .withRestartPolicy("Never")
+            .addNewVolume()
+            .withName("nfs-volume")
+            .withNewPersistentVolumeClaim()
+            .withClaimName("nfs-pvc")
+            .endPersistentVolumeClaim()
+            .endVolume()
+            .endSpec()
+            .build())
+        .create();
+    return pod;
+  }
+
+  private Pod createMasterPod(MakefileRequest request, io.fabric8.kubernetes.client.KubernetesClient client,
+      String uuid,
+      String podName, String imageName, final String namespace, List<String> hostAddresses) {
+    Pod pod = client.pods().inNamespace(namespace).resource(
+        new PodBuilder()
+            .withNewMetadata()
+            .withName(podName)
+            .withNamespace(namespace)
+            .addToLabels("mpi", uuid)
+            .endMetadata()
+            .withNewSpec()
+            .addNewContainer()
+            .withName(podName)
+            .withImage(imageName)
+            .withCommand("sh", "-c",
+                command(request.getCode(), request.getMakefile(), "/shared-nfs/" +
                     podName, String.join(",", hostAddresses)))
             .addNewPort()
             .withContainerPort(22)
@@ -169,9 +269,55 @@ public class FabricEight implements KubernetesClient {
     return podNames;
   }
 
+  private List<String> createWorkerPods(MakefileRequest request, io.fabric8.kubernetes.client.KubernetesClient client,
+      String uuid, String imageName, final String namespace) {
+    List<String> podNames = new ArrayList<>();
+    for (int i = 0; i < request.getNumberOfWorkers(); i++) {
+      String workerPodName = String.format("worker-%s-%d", uuid.subSequence(0, 5), i);
+      client.pods().inNamespace(namespace).resource(
+          new PodBuilder()
+              .withNewMetadata()
+              .withName(workerPodName)
+              .withNamespace(namespace)
+              .addToLabels("mpi", uuid)
+              .endMetadata()
+              .withNewSpec()
+              .addNewContainer()
+              .withName("alpine-mpi")
+              .withImage(imageName)
+              .withCommand("sh", "-c", "/usr/sbin/sshd -D && tail -f /dev/null")
+              .addNewPort()
+              .withContainerPort(22)
+              .endPort()
+              .addNewVolumeMount()
+              .withName("nfs-volume")
+              .withMountPath("/shared-nfs")
+              .endVolumeMount()
+              .endContainer()
+              .withRestartPolicy("Never")
+              .addNewVolume()
+              .withName("nfs-volume")
+              .withNewPersistentVolumeClaim()
+              .withClaimName("nfs-pvc")
+              .endPersistentVolumeClaim()
+              .endVolume()
+              .endSpec()
+              .build())
+          .create();
+      podNames.add(workerPodName);
+    }
+    return podNames;
+  }
+
   private void validate(JobRequest request) {
     if (request.getNumberOfWorkers() <= 0 || request.getNumberOfProcess() <= 0) {
       throw new IllegalArgumentException("Número de container e processos deve ser maior que 0");
+    }
+  }
+
+  private void validate(MakefileRequest request) {
+    if (request.getNumberOfProcess() <= 0) {
+      throw new IllegalArgumentException("Número de container deve ser maior que 0");
     }
   }
 
@@ -202,6 +348,27 @@ public class FabricEight implements KubernetesClient {
         hosts,
         path,
         path);
+  }
+
+  private String command(String code, String makefile, String path, String hosts) {
+    String makefileContent;
+    String codeEncoded = Base64.getEncoder().encodeToString(code.getBytes());
+
+    try {
+      makefileContent = String.format(makefile, hosts);
+    } catch (Exception e) {
+      makefileContent = makefile;
+    }
+
+    String makefileEncoded = Base64.getEncoder().encodeToString(makefileContent.getBytes());
+
+    return String.format(
+        "mkdir -p %s &&" +
+            " echo '%s' | base64 -d > %s/code.c &&" +
+            " echo '%s' | base64 -d > %s/Makefile &&" +
+            "cd %s && make &&" +
+            "cd .. && rm -rf %s",
+        path, codeEncoded, path, makefileEncoded, path, path);
   }
 
 }
