@@ -167,8 +167,7 @@ public class FabricEight implements KubernetesClient {
             .withName(podName)
             .withImage(imageName)
             .withCommand("sh", "-c",
-                command(request.getCode(), request.getNumberOfProcess(), "/shared-nfs/" +
-                    podName, String.join(",", hostAddresses), request.getCompilationDirective()))
+                command(request, "/shared-nfs/" + podName, String.join(",", hostAddresses)))
             .addNewPort()
             .withContainerPort(22)
             .endPort()
@@ -330,23 +329,24 @@ public class FabricEight implements KubernetesClient {
         .collect(Collectors.toList());
   }
 
-  private String command(String code, int numProcesses, String path, String hosts, String compilationDirectives) {
-    String base64 = Base64.getEncoder().encodeToString(code.getBytes());
+  private String command(JobRequest request, String path, String hosts) {
+    String base64 = Base64.getEncoder().encodeToString(request.getCode().getBytes());
     return String.format(
         "mkdir %s &&" +
             " echo '%s' | base64 -d > %s/code.c &&" +
             " mpicc %s/code.c -o %s/code %s &&" +
-            " mpirun --allow-run-as-root --oversubscribe -np %d  -host %s %s/code &&" +
+            " mpirun --allow-run-as-root --oversubscribe -np %d -host %s %s/code %s &&" +
             " rm -rf %s",
         path,
         base64,
         path,
         path,
         path,
-        compilationDirectives,
-        numProcesses,
+        request.getCompilationDirective(),
+        request.getNumberOfProcess(),
         hosts,
         path,
+        request.getArguments(),
         path);
   }
 

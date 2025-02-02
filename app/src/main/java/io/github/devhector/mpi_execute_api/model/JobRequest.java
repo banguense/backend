@@ -5,23 +5,17 @@ public class JobRequest {
   private Integer numberOfWorkers;
   private Integer numberOfProcess;
   private String accessKey;
+  private String arguments;
   private String code;
   private String uuid;
 
   public JobRequest(String compilationDirective, Integer numberOfWorkers, Integer numberOfProcess, String accessKey,
-      String code) {
+      String arguments, String code) {
     this.compilationDirective = compilationDirective;
     this.numberOfWorkers = numberOfWorkers;
     this.numberOfProcess = numberOfProcess;
     this.accessKey = accessKey;
-    this.code = code;
-
-  }
-
-  public JobRequest(Integer numberOfWorkers, Integer numberOfProcess, String accessKey, String code) {
-    this.numberOfWorkers = numberOfWorkers;
-    this.numberOfProcess = numberOfProcess;
-    this.accessKey = accessKey;
+    this.arguments = arguments;
     this.code = code;
   }
 
@@ -71,6 +65,14 @@ public class JobRequest {
 
   public void setAccessKey(String accessKey) {
     this.accessKey = accessKey;
+  }
+
+  public String getArguments() {
+    return arguments;
+  }
+
+  public void setArguments(String arguments) {
+    this.arguments = arguments;
   }
 
 }
