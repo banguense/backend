@@ -1,17 +1,36 @@
 package io.github.devhector.mpi_execute_api.model;
 
 public class JobRequest {
+  private String compilationDirective;
   private Integer numberOfWorkers;
   private Integer numberOfProcess;
   private String accessKey;
   private String code;
   private String uuid;
 
+  public JobRequest(String compilationDirective, Integer numberOfWorkers, Integer numberOfProcess, String accessKey,
+      String code) {
+    this.compilationDirective = compilationDirective;
+    this.numberOfWorkers = numberOfWorkers;
+    this.numberOfProcess = numberOfProcess;
+    this.accessKey = accessKey;
+    this.code = code;
+
+  }
+
   public JobRequest(Integer numberOfWorkers, Integer numberOfProcess, String accessKey, String code) {
     this.numberOfWorkers = numberOfWorkers;
     this.numberOfProcess = numberOfProcess;
     this.accessKey = accessKey;
     this.code = code;
+  }
+
+  public String getCompilationDirective() {
+    return compilationDirective;
+  }
+
+  public void setCompilationDirective(String compilationDirective) {
+    this.compilationDirective = compilationDirective;
   }
 
   public Integer getNumberOfWorkers() {
