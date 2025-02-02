@@ -1,5 +1,9 @@
 package io.github.devhector.mpi_execute_api.controller;
 
+import io.github.devhector.mpi_execute_api.model.JobRequest;
+import io.github.devhector.mpi_execute_api.model.JobResponse;
+import io.github.devhector.mpi_execute_api.model.MakefileRequest;
+import io.github.devhector.mpi_execute_api.service.JobService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -8,12 +12,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
 import io.github.devhector.mpi_execute_api.exception.InvalidAccessKeyException;
-import io.github.devhector.mpi_execute_api.model.JobRequest;
-import io.github.devhector.mpi_execute_api.model.JobResponse;
-import io.github.devhector.mpi_execute_api.model.MakefileRequest;
-import io.github.devhector.mpi_execute_api.service.JobService;
 
 @RestController
 @RequestMapping("/api")
@@ -38,7 +37,7 @@ public class JobController {
   }
 
   @PostMapping("/makefile")
-  public ResponseEntity<JobResponse> run(@RequestBody MakefileRequest request) {
+  public ResponseEntity<JobResponse> makefile(@RequestBody MakefileRequest request) {
     JobResponse response = jobService.makefileRunner(request);
     return ResponseEntity.ok(response);
   }

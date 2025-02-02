@@ -8,7 +8,6 @@ import io.fabric8.kubernetes.client.dsl.LogWatch;
 import io.github.devhector.mpi_execute_api.interfaces.KubernetesClient;
 import io.github.devhector.mpi_execute_api.model.JobRequest;
 import io.github.devhector.mpi_execute_api.model.MakefileRequest;
-
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -316,7 +315,7 @@ public class FabricEight implements KubernetesClient {
   }
 
   private void validate(MakefileRequest request) {
-    if (request.getNumberOfProcess() <= 0) {
+    if (request.getNumberOfWorkers() <= 0) {
       throw new IllegalArgumentException("Número de container deve ser maior que 0");
     }
   }
@@ -351,15 +350,9 @@ public class FabricEight implements KubernetesClient {
   }
 
   private String command(String code, String makefile, String path, String hosts) {
-    String makefileContent;
+    final String hostsMakefile = String.format("HOSTS = --allow-run-as-root --oversubscribe -host %s \n", hosts);
+    String makefileContent = hostsMakefile + makefile;
     String codeEncoded = Base64.getEncoder().encodeToString(code.getBytes());
-
-    try {
-      makefileContent = String.format(makefile, hosts);
-    } catch (Exception e) {
-      makefileContent = makefile;
-    }
-
     String makefileEncoded = Base64.getEncoder().encodeToString(makefileContent.getBytes());
 
     return String.format(
@@ -368,7 +361,7 @@ public class FabricEight implements KubernetesClient {
             " echo '%s' | base64 -d > %s/Makefile &&" +
             "cd %s && make &&" +
             "cd .. && rm -rf %s",
-        path, codeEncoded, path, makefileEncoded, path, path);
+        path, codeEncoded, path, makefileEncoded, path, path, path);
   }
 
 }

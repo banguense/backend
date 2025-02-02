@@ -2,7 +2,6 @@ package io.github.devhector.mpi_execute_api.model;
 
 public class MakefileRequest {
   private Integer numberOfWorkers;
-  private Integer numberOfProcess;
   private String accessKey;
   private String code;
   private String makefile;
@@ -21,14 +20,6 @@ public class MakefileRequest {
 
   public void setNumberOfWorkers(Integer numberOfWorkers) {
     this.numberOfWorkers = numberOfWorkers;
-  }
-
-  public Integer getNumberOfProcess() {
-    return numberOfProcess;
-  }
-
-  public void setNumberOfProcess(Integer numberOfProcess) {
-    this.numberOfProcess = numberOfProcess;
   }
 
   public String getAccessKey() {
