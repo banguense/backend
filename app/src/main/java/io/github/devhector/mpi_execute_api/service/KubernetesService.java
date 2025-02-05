@@ -1,12 +1,11 @@
 package io.github.devhector.mpi_execute_api.service;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-
-import io.github.devhector.mpi_execute_api.interfaces.KubernetesClient;
 import io.github.devhector.mpi_execute_api.model.JobRequest;
 import io.github.devhector.mpi_execute_api.model.JobResponse;
 import io.github.devhector.mpi_execute_api.model.MakefileRequest;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import io.github.devhector.mpi_execute_api.interfaces.KubernetesClient;
 
 @Service
 public class KubernetesService {
@@ -21,9 +20,8 @@ public class KubernetesService {
     kubernetesClient.createJob(request);
   }
 
-  public JobResponse run(JobRequest request) {
-    String result = kubernetesClient.run(request);
-    return new JobResponse(request.getUuid(), result);
+  public String run(JobRequest request) {
+    return kubernetesClient.run(request);
   }
 
   public JobResponse makefileRunner(MakefileRequest request) {

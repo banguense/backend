@@ -3,15 +3,28 @@ package io.github.devhector.mpi_execute_api.model;
 public class JobResponse {
   private final String id;
   private final String output;
+  private final Long elapsedTime;
+  private final Integer numberOfWorkers;
+
+  public JobResponse(Integer numberOfWorkers, String id, String output, long elapsedTime) {
+    this.numberOfWorkers = numberOfWorkers;
+    this.id = id;
+    this.output = output;
+    this.elapsedTime = elapsedTime;
+  }
 
   public JobResponse(String id) {
     this.id = id;
     this.output = null;
+    this.numberOfWorkers = null;
+    this.elapsedTime = null;
   }
 
   public JobResponse(String id, String output) {
     this.id = id;
     this.output = output;
+    this.numberOfWorkers = null;
+    this.elapsedTime = null;
   }
 
   public String getId() {
@@ -20,6 +33,14 @@ public class JobResponse {
 
   public String getOutput() {
     return output;
+  }
+
+  public Long getElapsedTime() {
+    return elapsedTime;
+  }
+
+  public Integer getNumberOfWorkers() {
+    return numberOfWorkers;
   }
 
   @Override

@@ -3,8 +3,8 @@ package io.github.devhector.mpi_execute_api.service;
 import io.github.devhector.mpi_execute_api.model.JobRequest;
 import io.github.devhector.mpi_execute_api.model.JobResponse;
 import io.github.devhector.mpi_execute_api.model.MakefileRequest;
-
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -38,7 +38,11 @@ public class JobService {
 
     request.setUuid(UUID.randomUUID().toString());
 
-    return kubernetesService.run(request);
+    TimeWatch watch = TimeWatch.start();
+    String output = kubernetesService.run(request);
+    Long elapsedTimeInSecond = watch.time(TimeUnit.SECONDS);
+
+    return new JobResponse(request.getNumberOfWorkers(), request.getUuid(), output, elapsedTimeInSecond);
   }
 
   public JobResponse makefileRunner(MakefileRequest request) {
