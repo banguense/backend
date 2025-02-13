@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Admin Panel</title>
+</head>
+<body>
+    <h1>Configurações do Sistema</h1>
+    
+    <form th:action="@{/admin/update}" method="post">
+        <div>
+            <label>Chave de Acesso:</label>
+            <input type="text" name="accessKey" th:value="${accessKey}">
+        </div>
+        
+        <div>
+            <label>Número Máximo de Containers:</label>
+            <input type="number" name="maxContainers" th:value="${maxContainers}">
+        </div>
+        
+        <button type="submit">Salvar Alterações</button>
+    </form>
+</body>
+</html>
