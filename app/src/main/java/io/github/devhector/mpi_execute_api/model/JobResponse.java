@@ -5,12 +5,14 @@ public class JobResponse {
   private final String output;
   private final Long elapsedTime;
   private final Integer numberOfWorkers;
+  private JobStatus status;
 
   public JobResponse(Integer numberOfWorkers, String id, String output, long elapsedTime) {
     this.numberOfWorkers = numberOfWorkers;
     this.id = id;
     this.output = output;
     this.elapsedTime = elapsedTime;
+    this.status = JobStatus.RUNNING;
   }
 
   public JobResponse(String id) {
@@ -18,6 +20,7 @@ public class JobResponse {
     this.output = null;
     this.numberOfWorkers = null;
     this.elapsedTime = null;
+    this.status = JobStatus.RUNNING;
   }
 
   public JobResponse(String id, String output) {
@@ -25,6 +28,7 @@ public class JobResponse {
     this.output = output;
     this.numberOfWorkers = null;
     this.elapsedTime = null;
+    this.status = JobStatus.RUNNING;
   }
 
   public String getId() {
@@ -41,6 +45,14 @@ public class JobResponse {
 
   public Integer getNumberOfWorkers() {
     return numberOfWorkers;
+  }
+
+  public JobStatus getStatus() {
+    return status;
+  }
+
+  public void setStatus(JobStatus status) {
+    this.status = status;
   }
 
   @Override
@@ -67,5 +79,4 @@ public class JobResponse {
       return false;
     return true;
   }
-
 }
