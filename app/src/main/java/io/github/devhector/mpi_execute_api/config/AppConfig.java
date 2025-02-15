@@ -11,6 +11,7 @@ import io.github.devhector.mpi_execute_api.repository.JobRepository;
 import io.github.devhector.mpi_execute_api.service.FabricEight;
 import io.github.devhector.mpi_execute_api.service.JobService;
 import io.github.devhector.mpi_execute_api.service.KubernetesService;
+import io.github.devhector.mpi_execute_api.service.StatusService;
 
 @Configuration
 public class AppConfig {
@@ -30,5 +31,10 @@ public class AppConfig {
   @Bean
   public JobService jobService(KubernetesService service, JobRepository jobRepository) {
     return new JobService(service, jobRepository);
+  }
+
+  @Bean
+  public StatusService statusService(JobRepository jobRepository) {
+    return new StatusService(jobRepository);
   }
 }

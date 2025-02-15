@@ -15,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import io.github.devhector.mpi_execute_api.exception.InvalidAccessKeyException;
 
@@ -68,10 +69,9 @@ public class JobService {
     return kubernetesService.makefileRunner(request);
   }
 
+  @Async("taskExecutor")
   public CompletableFuture<JobResponse> runAsync(JobRequest request) {
     validate(request);
-
-    request.setUuid(UUID.randomUUID().toString());
 
     String output = null;
     Long elapsedTimeInSecond = 0L;
@@ -85,7 +85,7 @@ public class JobService {
     TimeWatch watch = TimeWatch.start();
 
     try {
-      output = kubernetesService.run(request);
+      output = kubernetesService.runAsync(request);
       elapsedTimeInSecond = watch.time(TimeUnit.SECONDS);
 
       job.setStatus(JobStatus.COMPLETED);
@@ -101,9 +101,8 @@ public class JobService {
       jobRepository.save(job);
     }
 
-    JobResponse response = new JobResponse(request.getNumberOfWorkers(), request.getUuid(), output,
-        elapsedTimeInSecond);
-    response.setStatus(job.getStatus());
+    JobResponse response = new JobResponse(request.getUuid(), output,
+        elapsedTimeInSecond, request.getNumberOfWorkers(), job.getStatus());
 
     return CompletableFuture.completedFuture(response);
   }

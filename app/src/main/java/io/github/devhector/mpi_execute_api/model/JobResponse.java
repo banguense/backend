@@ -7,6 +7,14 @@ public class JobResponse {
   private final Integer numberOfWorkers;
   private JobStatus status;
 
+  public JobResponse(String id, String output, Long elapsedTime, Integer numberOfWorkers, JobStatus status) {
+    this.id = id;
+    this.output = output;
+    this.elapsedTime = elapsedTime;
+    this.numberOfWorkers = numberOfWorkers;
+    this.status = status;
+  }
+
   public JobResponse(Integer numberOfWorkers, String id, String output, long elapsedTime) {
     this.numberOfWorkers = numberOfWorkers;
     this.id = id;

@@ -154,6 +154,66 @@ public class FabricEight implements KubernetesClient {
     }
   }
 
+  @Override
+  public String runAsync(JobRequest request) {
+    try (io.fabric8.kubernetes.client.KubernetesClient client = clientBuilder.build()) {
+      final LogWatch lw;
+      final String namespace = Optional.ofNullable(client.getNamespace()).orElse("default");
+      String log;
+      String uuid = request.getUuid().substring(0, 5);
+      String podName = "master-" + uuid;
+      String imageName = "localhost:32000/alpine-mpi:v0.2";
+      ArrayList<String> allPods = new ArrayList<>();
+
+      try {
+        validate(request);
+        allPods.add(podName);
+        List<String> podNames = createWorkerPods(request, client, uuid, imageName, namespace);
+
+        logger.info("waiting worker pods to be running");
+        podNames.forEach(name -> client.pods()
+            .inNamespace(namespace)
+            .withName(name)
+            .waitUntilCondition(
+                pod -> pod != null && "Running".equalsIgnoreCase(pod.getStatus().getPhase()),
+                120960000L,
+                TimeUnit.SECONDS));
+
+        allPods.addAll(podNames);
+        List<String> hostAddresses = getHostsFrom(client, namespace, podNames);
+        logger.info("list of hosts: " + hostAddresses.toString());
+
+        Pod pod = createMasterPod(request, client, uuid, podName, imageName, namespace, hostAddresses);
+
+        logger.info("Master Pod is ready now");
+        lw = client.pods().inNamespace(namespace).withName(pod.getMetadata().getName())
+            .watchLog(System.out);
+
+        client.pods().inNamespace(namespace).withName(podName).waitUntilCondition(
+            masterPod -> masterPod != null &&
+                "Succeeded".equalsIgnoreCase(masterPod.getStatus().getPhase()) ||
+                "Failed".equalsIgnoreCase(masterPod.getStatus().getPhase()),
+            120960000L,
+            TimeUnit.SECONDS);
+
+        log = client.pods().inNamespace(namespace).withName(podName).getLog();
+        logger.info("Closing Master Pod log watch");
+        lw.close();
+      } catch (Exception e) {
+        e.printStackTrace();
+        return e.getMessage().toString();
+      } finally {
+        logger.info("Deleting all pods");
+        allPods.forEach(name -> client.pods().inNamespace(namespace).withName(name).delete());
+        client.pods().inNamespace(namespace).withName(podName).delete();
+      }
+      return filter(log);
+    } catch (Exception e) {
+      e.printStackTrace();
+      return e.getMessage().toString();
+    }
+  }
+
   private String filter(String input) {
     return input.lines()
         .filter(line -> !line.startsWith("Warning: Permanently added"))
@@ -188,7 +248,7 @@ public class FabricEight implements KubernetesClient {
             .addNewVolume()
             .withName("nfs-volume")
             .withNewPersistentVolumeClaim()
-            .withClaimName("nfs-pvc")
+            .withClaimName("nfs-root-pvc")
             .endPersistentVolumeClaim()
             .endVolume()
             .endSpec()
@@ -226,7 +286,7 @@ public class FabricEight implements KubernetesClient {
             .addNewVolume()
             .withName("nfs-volume")
             .withNewPersistentVolumeClaim()
-            .withClaimName("nfs-pvc")
+            .withClaimName("nfs-root-pvc")
             .endPersistentVolumeClaim()
             .endVolume()
             .endSpec()
@@ -264,7 +324,7 @@ public class FabricEight implements KubernetesClient {
               .addNewVolume()
               .withName("nfs-volume")
               .withNewPersistentVolumeClaim()
-              .withClaimName("nfs-pvc")
+              .withClaimName("nfs-root-pvc")
               .endPersistentVolumeClaim()
               .endVolume()
               .endSpec()
@@ -304,7 +364,7 @@ public class FabricEight implements KubernetesClient {
               .addNewVolume()
               .withName("nfs-volume")
               .withNewPersistentVolumeClaim()
-              .withClaimName("nfs-pvc")
+              .withClaimName("nfs-root-pvc")
               .endPersistentVolumeClaim()
               .endVolume()
               .endSpec()
@@ -343,8 +403,7 @@ public class FabricEight implements KubernetesClient {
         "mkdir %s &&" +
             " echo '%s' | base64 -d > %s/code.c &&" +
             " mpicc %s/code.c -o %s/code %s &&" +
-            " mpirun --allow-run-as-root --oversubscribe -np %d -host %s %s/code %s &&" +
-            " rm -rf %s",
+            " mpirun --allow-run-as-root --oversubscribe -np %d -host %s %s/code %s | tee %s/output",
         path,
         base64,
         path,

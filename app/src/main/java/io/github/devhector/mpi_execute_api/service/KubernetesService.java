@@ -24,6 +24,10 @@ public class KubernetesService {
     return kubernetesClient.run(request);
   }
 
+  public String runAsync(JobRequest request) {
+    return kubernetesClient.runAsync(request);
+  }
+
   public JobResponse makefileRunner(MakefileRequest request) {
     String result = kubernetesClient.makefileRunner(request);
     return new JobResponse(request.getUuid(), result);

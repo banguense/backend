@@ -8,5 +8,7 @@ public interface KubernetesClient {
 
   String run(JobRequest request);
 
+  String runAsync(JobRequest request);
+
   String makefileRunner(MakefileRequest request);
 }

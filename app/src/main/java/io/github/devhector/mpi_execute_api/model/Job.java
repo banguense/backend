@@ -1,11 +1,13 @@
 package io.github.devhector.mpi_execute_api.model;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Lob;
 
 @Entity
 public class Job {
@@ -19,9 +21,13 @@ public class Job {
   @Enumerated(EnumType.STRING)
   private JobStatus status;
 
+  @Lob
+  @Column(columnDefinition = "LONGTEXT")
   private String output;
 
   private Long elapsedTime;
+
+  private Integer numberOfWorkers;
 
   public Long getElapsedTime() {
     return elapsedTime;
@@ -61,6 +67,10 @@ public class Job {
 
   public void setOutput(String output) {
     this.output = output;
+  }
+
+  public Integer getNumberOfWorkers() {
+    return numberOfWorkers;
   }
 
 }
