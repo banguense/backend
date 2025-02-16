@@ -7,6 +7,9 @@ import io.github.devhector.mpi_execute_api.model.JobStatus;
 import io.github.devhector.mpi_execute_api.model.MakefileRequest;
 import io.github.devhector.mpi_execute_api.repository.JobRepository;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -17,6 +20,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
 import io.github.devhector.mpi_execute_api.exception.InvalidAccessKeyException;
 
 @Service
@@ -39,34 +44,45 @@ public class JobService {
     this.jobRepository = jobRepository;
   }
 
-  public JobResponse createJob(JobRequest request) {
+  @Async("taskExecutor")
+  public void makefileRunner(MakefileRequest request, MultipartFile[] files) {
+    String UPLOAD_DIR = "/mnt/nfs/master-" + request.getUuid().substring(0, 5) + "/";
     validate(request);
 
-    request.setUuid(UUID.randomUUID().toString());
+    String output = null;
+    Long elapsedTimeInSecond = 0L;
 
-    kubernetesService.createJob(request);
-
-    return new JobResponse(request.getUuid());
-  }
-
-  public JobResponse run(JobRequest request) {
-    validate(request);
-
-    request.setUuid(UUID.randomUUID().toString());
+    Job job = new Job();
+    job.setUuid(request.getUuid());
+    job.setStatus(JobStatus.RUNNING);
+    job.setElapsedTime(elapsedTimeInSecond);
+    jobRepository.save(job);
 
     TimeWatch watch = TimeWatch.start();
-    String output = kubernetesService.run(request);
-    Long elapsedTimeInSecond = watch.time(TimeUnit.SECONDS);
 
-    return new JobResponse(request.getNumberOfWorkers(), request.getUuid(), output, elapsedTimeInSecond);
-  }
+    try {
+      Files.createDirectory(Path.of(UPLOAD_DIR));
 
-  public JobResponse makefileRunner(MakefileRequest request) {
-    validate(request);
+      for (MultipartFile file : files) {
+        Path filePath = Path.of(UPLOAD_DIR, file.getOriginalFilename());
+        Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+      }
 
-    request.setUuid(UUID.randomUUID().toString());
+      output = kubernetesService.makefileRunner(request);
+      elapsedTimeInSecond = watch.time(TimeUnit.SECONDS);
 
-    return kubernetesService.makefileRunner(request);
+      job.setStatus(JobStatus.COMPLETED);
+      job.setOutput(output);
+
+    } catch (Exception e) {
+      job.setStatus(JobStatus.FAILED);
+      job.setOutput("Erro: " + e.getMessage());
+
+      logger.error("Erro ao executar o job: " + request.getUuid(), e);
+    } finally {
+      job.setElapsedTime(elapsedTimeInSecond);
+      jobRepository.save(job);
+    }
   }
 
   @Async("taskExecutor")

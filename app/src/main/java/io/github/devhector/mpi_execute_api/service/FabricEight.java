@@ -22,23 +22,9 @@ public class FabricEight implements KubernetesClient {
   private static final Logger logger = LoggerFactory.getLogger(FabricEight.class);
 
   private final KubernetesClientBuilder clientBuilder;
-  private final JobBuilder jobBuilder;
 
-  public FabricEight(KubernetesClientBuilder clientBuilder, JobBuilder jobBuilder) {
+  public FabricEight(KubernetesClientBuilder clientBuilder) {
     this.clientBuilder = clientBuilder;
-    this.jobBuilder = jobBuilder;
-  }
-
-  @Override
-  public void createJob(JobRequest request) {
-    try (io.fabric8.kubernetes.client.KubernetesClient client = clientBuilder.build()) {
-      Job job = jobBuilder.withNewMetadata().withName(request.getUuid()).withNamespace("default").endMetadata()
-          .withNewSpec().withNewTemplate().withNewSpec().addNewContainer().withName("busybox").withImage("busybox")
-          .withCommand("echo", "Hello world!").endContainer().withRestartPolicy("Never").endSpec().endTemplate()
-          .endSpec().build();
-
-      client.batch().v1().jobs().resource(job).create();
-    }
   }
 
   @Override
@@ -60,7 +46,7 @@ public class FabricEight implements KubernetesClient {
           .withName(name)
           .waitUntilCondition(
               pod -> pod != null && "Running".equalsIgnoreCase(pod.getStatus().getPhase()),
-              60L,
+              120960000L,
               TimeUnit.SECONDS));
 
       List<String> hostAddresses = getHostsFrom(client, namespace, podNames);
@@ -76,7 +62,7 @@ public class FabricEight implements KubernetesClient {
           masterPod -> masterPod != null &&
               "Succeeded".equalsIgnoreCase(masterPod.getStatus().getPhase()) ||
               "Failed".equalsIgnoreCase(masterPod.getStatus().getPhase()),
-          10L,
+          120960000L,
           TimeUnit.SECONDS);
 
       String log = client.pods().inNamespace(namespace).withName(podName).getLog();
@@ -87,66 +73,6 @@ public class FabricEight implements KubernetesClient {
       podNames.forEach(name -> client.pods().inNamespace(namespace).withName(name).delete());
       client.pods().inNamespace(namespace).withName(podName).delete();
 
-      return filter(log);
-    } catch (Exception e) {
-      e.printStackTrace();
-      return e.getMessage().toString();
-    }
-  }
-
-  @Override
-  public String run(JobRequest request) {
-    try (io.fabric8.kubernetes.client.KubernetesClient client = clientBuilder.build()) {
-      final LogWatch lw;
-      final String namespace = Optional.ofNullable(client.getNamespace()).orElse("default");
-      String log;
-      String uuid = request.getUuid().substring(0, 5);
-      String podName = "master-" + uuid;
-      String imageName = "localhost:32000/alpine-mpi:v0.2";
-      ArrayList<String> allPods = new ArrayList<>();
-
-      try {
-        validate(request);
-        allPods.add(podName);
-        List<String> podNames = createWorkerPods(request, client, uuid, imageName, namespace);
-
-        logger.info("waiting worker pods to be running");
-        podNames.forEach(name -> client.pods()
-            .inNamespace(namespace)
-            .withName(name)
-            .waitUntilCondition(
-                pod -> pod != null && "Running".equalsIgnoreCase(pod.getStatus().getPhase()),
-                60L,
-                TimeUnit.SECONDS));
-
-        allPods.addAll(podNames);
-        List<String> hostAddresses = getHostsFrom(client, namespace, podNames);
-        logger.info("list of hosts: " + hostAddresses.toString());
-
-        Pod pod = createMasterPod(request, client, uuid, podName, imageName, namespace, hostAddresses);
-
-        logger.info("Master Pod is ready now");
-        lw = client.pods().inNamespace(namespace).withName(pod.getMetadata().getName())
-            .watchLog(System.out);
-
-        client.pods().inNamespace(namespace).withName(podName).waitUntilCondition(
-            masterPod -> masterPod != null &&
-                "Succeeded".equalsIgnoreCase(masterPod.getStatus().getPhase()) ||
-                "Failed".equalsIgnoreCase(masterPod.getStatus().getPhase()),
-            10L,
-            TimeUnit.SECONDS);
-
-        log = client.pods().inNamespace(namespace).withName(podName).getLog();
-        logger.info("Closing Master Pod log watch");
-        lw.close();
-      } catch (Exception e) {
-        e.printStackTrace();
-        return e.getMessage().toString();
-      } finally {
-        logger.info("Deleting all pods");
-        allPods.forEach(name -> client.pods().inNamespace(namespace).withName(name).delete());
-        client.pods().inNamespace(namespace).withName(podName).delete();
-      }
       return filter(log);
     } catch (Exception e) {
       e.printStackTrace();
@@ -272,7 +198,7 @@ public class FabricEight implements KubernetesClient {
             .withName(podName)
             .withImage(imageName)
             .withCommand("sh", "-c",
-                command(request.getCode(), request.getMakefile(), "/shared-nfs/" +
+                command(request.getMakefile(), "/shared-nfs/" +
                     podName, String.join(",", hostAddresses)))
             .addNewPort()
             .withContainerPort(22)
@@ -417,19 +343,15 @@ public class FabricEight implements KubernetesClient {
         path);
   }
 
-  private String command(String code, String makefile, String path, String hosts) {
+  private String command(String makefile, String path, String hosts) {
     final String hostsMakefile = String.format("HOSTS = --allow-run-as-root --oversubscribe -host %s \n", hosts);
     String makefileContent = hostsMakefile + makefile;
-    String codeEncoded = Base64.getEncoder().encodeToString(code.getBytes());
     String makefileEncoded = Base64.getEncoder().encodeToString(makefileContent.getBytes());
 
     return String.format(
-        "mkdir -p %s &&" +
-            " echo '%s' | base64 -d > %s/code.c &&" +
-            " echo '%s' | base64 -d > %s/Makefile &&" +
-            "cd %s && make &&" +
-            "cd .. && rm -rf %s",
-        path, codeEncoded, path, makefileEncoded, path, path, path);
+        " echo '%s' | base64 -d > %s/Makefile &&" +
+            "cd %s && make | tee output",
+        makefileEncoded, path, path);
   }
 
 }
