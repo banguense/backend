@@ -1,17 +1,16 @@
 package io.github.devhector.mpi_execute_api.model;
 
 public class MakefileRequest {
-  private Integer numberOfWorkers;
-  private String accessKey;
-  private String code;
-  private String makefile;
   private String uuid;
+  private String makefile;
+  private String accessKey;
+  private Integer numberOfWorkers;
 
-  public MakefileRequest(Integer numberOfWorkers, String accessKey, String code, String makefile) {
-    this.numberOfWorkers = numberOfWorkers;
-    this.accessKey = accessKey;
-    this.code = code;
+  public MakefileRequest(String uuid, String makefile, String accessKey, Integer numberOfWorkers) {
+    this.uuid = uuid;
     this.makefile = makefile;
+    this.accessKey = accessKey;
+    this.numberOfWorkers = numberOfWorkers;
   }
 
   public Integer getNumberOfWorkers() {
@@ -28,14 +27,6 @@ public class MakefileRequest {
 
   public void setAccessKey(String accessKey) {
     this.accessKey = accessKey;
-  }
-
-  public String getCode() {
-    return code;
-  }
-
-  public void setCode(String code) {
-    this.code = code;
   }
 
   public String getMakefile() {

@@ -10,6 +10,9 @@ import io.github.devhector.mpi_execute_api.repository.JobRepository;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -45,8 +48,7 @@ public class JobService {
   }
 
   @Async("taskExecutor")
-  public void makefileRunner(MakefileRequest request, MultipartFile[] files) {
-    String UPLOAD_DIR = "/mnt/nfs/master-" + request.getUuid().substring(0, 5) + "/";
+  public void makefileRunner(MakefileRequest request) {
     validate(request);
 
     String output = null;
@@ -61,13 +63,6 @@ public class JobService {
     TimeWatch watch = TimeWatch.start();
 
     try {
-      Files.createDirectory(Path.of(UPLOAD_DIR));
-
-      for (MultipartFile file : files) {
-        Path filePath = Path.of(UPLOAD_DIR, file.getOriginalFilename());
-        Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
-      }
-
       output = kubernetesService.makefileRunner(request);
       elapsedTimeInSecond = watch.time(TimeUnit.SECONDS);
 
@@ -121,6 +116,26 @@ public class JobService {
         elapsedTimeInSecond, request.getNumberOfWorkers(), job.getStatus());
 
     return CompletableFuture.completedFuture(response);
+  }
+
+  public String upload(MultipartFile[] files) {
+    String uuid = UUID.randomUUID().toString();
+    String UPLOAD_DIR = "/mnt/nfs_mount/master-" + uuid.substring(0, 5) + "/";
+
+    try {
+      Files.createDirectory(Path.of(UPLOAD_DIR));
+
+      Set<PosixFilePermission> permissions = PosixFilePermissions.fromString("rwxrwxrwx");
+      Files.setPosixFilePermissions(Path.of(UPLOAD_DIR), permissions);
+
+      for (MultipartFile file : files) {
+        Path filePath = Path.of(UPLOAD_DIR, file.getOriginalFilename());
+        Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+      }
+    } catch (Exception e) {
+      logger.error("Erro ao fazer o upload da requisicao: " + uuid, e);
+    }
+    return uuid;
   }
 
   private void validate(JobRequest request) throws InvalidAccessKeyException {

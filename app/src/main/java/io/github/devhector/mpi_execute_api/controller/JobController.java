@@ -1,17 +1,10 @@
 package io.github.devhector.mpi_execute_api.controller;
 
-import io.github.devhector.mpi_execute_api.model.JobRequest;
-import io.github.devhector.mpi_execute_api.model.JobResponse;
-import io.github.devhector.mpi_execute_api.model.MakefileRequest;
-import io.github.devhector.mpi_execute_api.service.JobService;
-import io.github.devhector.mpi_execute_api.service.StatusService;
-
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.ApplicationContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -25,6 +18,12 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import io.github.devhector.mpi_execute_api.exception.InvalidAccessKeyException;
+import io.github.devhector.mpi_execute_api.model.JobRequest;
+import io.github.devhector.mpi_execute_api.model.JobResponse;
+import io.github.devhector.mpi_execute_api.model.MakefileRequest;
+import io.github.devhector.mpi_execute_api.model.UploadResponse;
+import io.github.devhector.mpi_execute_api.service.JobService;
+import io.github.devhector.mpi_execute_api.service.StatusService;
 
 @RestController
 @RequestMapping("/api")
@@ -52,11 +51,15 @@ public class JobController {
     return jobResponse.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
   }
 
+  @PostMapping("/upload")
+  public ResponseEntity<UploadResponse> upload(@RequestParam("files") MultipartFile[] files) {
+    String uuid = jobService.upload(files);
+    return ResponseEntity.ok(new UploadResponse(uuid));
+  }
+
   @PostMapping("/makefile")
-  public ResponseEntity<JobResponse> makefile(@RequestBody MakefileRequest request,
-      @RequestParam("files") MultipartFile[] files) {
-    request.setUuid(UUID.randomUUID().toString());
-    jobService.makefileRunner(request, files);
+  public ResponseEntity<JobResponse> makefile(@RequestBody MakefileRequest request) {
+    jobService.makefileRunner(request);
     return ResponseEntity.ok(new JobResponse(request.getUuid()));
   }
 
