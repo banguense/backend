@@ -1,12 +1,5 @@
 package io.github.devhector.mpi_execute_api.service;
 
-import io.github.devhector.mpi_execute_api.model.Job;
-import io.github.devhector.mpi_execute_api.model.JobRequest;
-import io.github.devhector.mpi_execute_api.model.JobResponse;
-import io.github.devhector.mpi_execute_api.model.JobStatus;
-import io.github.devhector.mpi_execute_api.model.MakefileRequest;
-import io.github.devhector.mpi_execute_api.repository.JobRepository;
-
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -14,7 +7,6 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
@@ -26,6 +18,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import io.github.devhector.mpi_execute_api.exception.InvalidAccessKeyException;
+import io.github.devhector.mpi_execute_api.model.Job;
+import io.github.devhector.mpi_execute_api.model.JobRequest;
+import io.github.devhector.mpi_execute_api.model.JobStatus;
+import io.github.devhector.mpi_execute_api.model.MakefileRequest;
+import io.github.devhector.mpi_execute_api.repository.JobRepository;
 
 @Service
 public class JobService {
@@ -60,9 +57,8 @@ public class JobService {
     job.setElapsedTime(elapsedTimeInSecond);
     jobRepository.save(job);
 
-    TimeWatch watch = TimeWatch.start();
-
     try {
+      TimeWatch watch = TimeWatch.start();
       output = kubernetesService.makefileRunner(request);
       elapsedTimeInSecond = watch.time(TimeUnit.SECONDS);
 
@@ -81,7 +77,7 @@ public class JobService {
   }
 
   @Async("taskExecutor")
-  public CompletableFuture<JobResponse> runAsync(JobRequest request) {
+  public void runAsync(JobRequest request) {
     validate(request);
 
     String output = null;
@@ -93,9 +89,8 @@ public class JobService {
     job.setElapsedTime(elapsedTimeInSecond);
     jobRepository.save(job);
 
-    TimeWatch watch = TimeWatch.start();
-
     try {
+      TimeWatch watch = TimeWatch.start();
       output = kubernetesService.runAsync(request);
       elapsedTimeInSecond = watch.time(TimeUnit.SECONDS);
 
@@ -111,11 +106,6 @@ public class JobService {
       job.setElapsedTime(elapsedTimeInSecond);
       jobRepository.save(job);
     }
-
-    JobResponse response = new JobResponse(request.getUuid(), output,
-        elapsedTimeInSecond, request.getNumberOfWorkers(), job.getStatus());
-
-    return CompletableFuture.completedFuture(response);
   }
 
   public String upload(MultipartFile[] files) {

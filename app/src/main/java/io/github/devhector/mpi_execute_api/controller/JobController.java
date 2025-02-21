@@ -2,7 +2,6 @@ package io.github.devhector.mpi_execute_api.controller;
 
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -40,7 +39,7 @@ public class JobController {
   @PostMapping("/runAsync")
   public ResponseEntity<JobResponse> runAsync(@RequestBody JobRequest request) {
     request.setUuid(UUID.randomUUID().toString());
-    CompletableFuture<JobResponse> futureResponse = jobService.runAsync(request);
+    jobService.runAsync(request);
     return ResponseEntity.ok(new JobResponse(request.getUuid()));
   }
 
@@ -48,7 +47,8 @@ public class JobController {
   public ResponseEntity<JobResponse> status(@PathVariable String uuid) {
     Optional<JobResponse> jobResponse = statusService.check(uuid);
 
-    return jobResponse.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
+    return jobResponse.map(ResponseEntity::ok)
+        .orElseGet(() -> ResponseEntity.notFound().build());
   }
 
   @PostMapping("/upload")
