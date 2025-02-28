@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import io.github.devhector.mpi_execute_api.exception.InvalidAccessKeyException;
+import io.github.devhector.mpi_execute_api.interfaces.Request;
 import io.github.devhector.mpi_execute_api.model.Job;
 import io.github.devhector.mpi_execute_api.model.JobRequest;
 import io.github.devhector.mpi_execute_api.model.JobStatus;
@@ -128,16 +129,8 @@ public class JobService {
     return uuid;
   }
 
-  private void validate(JobRequest request) throws InvalidAccessKeyException {
-    if (!accessKey.equals(request.getAccessKey())) {
-      throw new InvalidAccessKeyException("Invalid Access Key!");
-    }
-    if (request.getNumberOfWorkers() > maxContainers) {
-      request.setNumberOfWorkers(maxContainers);
-    }
-  }
-
-  private void validate(MakefileRequest request) throws InvalidAccessKeyException {
+  private void validate(Request request)
+      throws InvalidAccessKeyException {
     if (!accessKey.equals(request.getAccessKey())) {
       throw new InvalidAccessKeyException("Invalid Access Key!");
     }

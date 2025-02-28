@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.api.model.PodBuilder;
 import io.fabric8.kubernetes.client.KubernetesClientBuilder;
+import io.fabric8.kubernetes.client.KubernetesClientException;
 import io.fabric8.kubernetes.client.dsl.LogWatch;
 import io.github.devhector.mpi_execute_api.interfaces.KubernetesClient;
 import io.github.devhector.mpi_execute_api.model.JobRequest;
@@ -29,59 +30,6 @@ public class FabricEight implements KubernetesClient {
 
   @Override
   public String makefileRunner(MakefileRequest request) {
-
-    try (io.fabric8.kubernetes.client.KubernetesClient client = clientBuilder.build()) {
-      String uuid = request.getUuid().substring(0, 5);
-      String podName = "master-" + uuid;
-      String imageName = "localhost:32000/alpine-mpi:v0.2";
-      final String namespace = Optional.ofNullable(client.getNamespace()).orElse("default");
-
-      validate(request);
-
-      List<String> podNames = createWorkerPods(request, client, uuid, imageName, namespace);
-
-      logger.info("waiting worker pods to be running");
-      podNames.forEach(name -> client.pods()
-          .inNamespace(namespace)
-          .withName(name)
-          .waitUntilCondition(
-              pod -> pod != null && "Running".equalsIgnoreCase(pod.getStatus().getPhase()),
-              120960000L,
-              TimeUnit.SECONDS));
-
-      List<String> hostAddresses = getHostsFrom(client, namespace, podNames);
-      logger.info("list of hosts: " + hostAddresses.toString());
-
-      Pod pod = createMasterPod(request, client, uuid, podName, imageName, namespace, hostAddresses);
-
-      logger.info("Master Pod is ready now");
-      final LogWatch lw = client.pods().inNamespace(namespace).withName(pod.getMetadata().getName())
-          .watchLog(System.out);
-
-      client.pods().inNamespace(namespace).withName(podName).waitUntilCondition(
-          masterPod -> masterPod != null &&
-              "Succeeded".equalsIgnoreCase(masterPod.getStatus().getPhase()) ||
-              "Failed".equalsIgnoreCase(masterPod.getStatus().getPhase()),
-          120960000L,
-          TimeUnit.SECONDS);
-
-      String log = client.pods().inNamespace(namespace).withName(podName).getLog();
-      lw.close();
-      logger.info("Closing Master Pod log watch");
-
-      logger.info("Deleting all pods");
-      podNames.forEach(name -> client.pods().inNamespace(namespace).withName(name).delete());
-      client.pods().inNamespace(namespace).withName(podName).delete();
-
-      return filter(log);
-    } catch (Exception e) {
-      e.printStackTrace();
-      return e.getMessage().toString();
-    }
-  }
-
-  @Override
-  public String runAsync(JobRequest request) {
     try (io.fabric8.kubernetes.client.KubernetesClient client = clientBuilder.build()) {
       final LogWatch lw;
       final String namespace = Optional.ofNullable(client.getNamespace()).orElse("default");
@@ -92,7 +40,6 @@ public class FabricEight implements KubernetesClient {
       ArrayList<String> allPods = new ArrayList<>();
 
       try {
-        validate(request);
         allPods.add(podName);
         List<String> podNames = createWorkerPods(request, client, uuid, imageName, namespace);
 
@@ -127,7 +74,7 @@ public class FabricEight implements KubernetesClient {
         lw.close();
       } catch (Exception e) {
         e.printStackTrace();
-        return e.getMessage().toString();
+        throw new KubernetesClientException("Operacao nao realizada", e);
       } finally {
         logger.info("Deleting all pods");
         allPods.forEach(name -> client.pods().inNamespace(namespace).withName(name).delete());
@@ -136,7 +83,66 @@ public class FabricEight implements KubernetesClient {
       return filter(log);
     } catch (Exception e) {
       e.printStackTrace();
-      return e.getMessage().toString();
+      throw new KubernetesClientException("Não foi possível completar a operação", e);
+    }
+  }
+
+  @Override
+  public String runAsync(JobRequest request) {
+    try (io.fabric8.kubernetes.client.KubernetesClient client = clientBuilder.build()) {
+      final LogWatch lw;
+      final String namespace = Optional.ofNullable(client.getNamespace()).orElse("default");
+      String log;
+      String uuid = request.getUuid().substring(0, 5);
+      String podName = "master-" + uuid;
+      String imageName = "localhost:32000/alpine-mpi:v0.2";
+      ArrayList<String> allPods = new ArrayList<>();
+
+      try {
+        allPods.add(podName);
+        List<String> podNames = createWorkerPods(request, client, uuid, imageName, namespace);
+
+        logger.info("waiting worker pods to be running");
+        podNames.forEach(name -> client.pods()
+            .inNamespace(namespace)
+            .withName(name)
+            .waitUntilCondition(
+                pod -> pod != null && "Running".equalsIgnoreCase(pod.getStatus().getPhase()),
+                120960000L,
+                TimeUnit.SECONDS));
+
+        allPods.addAll(podNames);
+        List<String> hostAddresses = getHostsFrom(client, namespace, podNames);
+        logger.info("list of hosts: " + hostAddresses.toString());
+
+        Pod pod = createMasterPod(request, client, uuid, podName, imageName, namespace, hostAddresses);
+
+        logger.info("Master Pod is ready now");
+        lw = client.pods().inNamespace(namespace).withName(pod.getMetadata().getName())
+            .watchLog(System.out);
+
+        client.pods().inNamespace(namespace).withName(podName).waitUntilCondition(
+            masterPod -> masterPod != null &&
+                "Succeeded".equalsIgnoreCase(masterPod.getStatus().getPhase()) ||
+                "Failed".equalsIgnoreCase(masterPod.getStatus().getPhase()),
+            120960000L,
+            TimeUnit.SECONDS);
+
+        log = client.pods().inNamespace(namespace).withName(podName).getLog();
+        logger.info("Closing Master Pod log watch");
+        lw.close();
+      } catch (Exception e) {
+        e.printStackTrace();
+        throw new KubernetesClientException("Operacao nao realizada", e);
+      } finally {
+        logger.info("Deleting all pods");
+        allPods.forEach(name -> client.pods().inNamespace(namespace).withName(name).delete());
+        client.pods().inNamespace(namespace).withName(podName).delete();
+      }
+      return filter(log);
+    } catch (Exception e) {
+      e.printStackTrace();
+      throw new KubernetesClientException("Não foi possível completar a operação", e);
     }
   }
 
@@ -299,18 +305,6 @@ public class FabricEight implements KubernetesClient {
       podNames.add(workerPodName);
     }
     return podNames;
-  }
-
-  private void validate(JobRequest request) {
-    if (request.getNumberOfWorkers() <= 0 || request.getNumberOfProcess() <= 0) {
-      throw new IllegalArgumentException("Número de container e processos deve ser maior que 0");
-    }
-  }
-
-  private void validate(MakefileRequest request) {
-    if (request.getNumberOfWorkers() <= 0) {
-      throw new IllegalArgumentException("Número de container deve ser maior que 0");
-    }
   }
 
   private List<String> getHostsFrom(io.fabric8.kubernetes.client.KubernetesClient client, final String namespace,
