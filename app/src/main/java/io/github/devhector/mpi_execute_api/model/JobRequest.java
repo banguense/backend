@@ -1,6 +1,8 @@
 package io.github.devhector.mpi_execute_api.model;
 
-public class JobRequest {
+import io.github.devhector.mpi_execute_api.interfaces.Request;
+
+public class JobRequest implements Request {
   private String compilationDirective;
   private Integer numberOfWorkers;
   private Integer numberOfProcess;

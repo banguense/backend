@@ -1,6 +1,8 @@
 package io.github.devhector.mpi_execute_api.model;
 
-public class MakefileRequest {
+import io.github.devhector.mpi_execute_api.interfaces.Request;
+
+public class MakefileRequest implements Request {
   private String uuid;
   private String makefile;
   private String accessKey;
